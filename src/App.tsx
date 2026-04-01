@@ -839,10 +839,24 @@ export default function App() {
       {/* Chat Area */}
       <div style={{ flex: 1, overflowY: "auto", padding: "2rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
         {messages.length === 0 && (
-          <div style={{ margin: "auto", textAlign: "center", color: "#6c7086" }}>
-            <Terminal size={48} style={{ marginBottom: "1rem" }} />
-            <p>Welcome to Unrestricted Claude Code via Rust & Tauri.</p>
-            <p>I can execute ANY terminal command natively. Please provide your Anthropic API Key above to start.</p>
+          <div style={{ margin: "auto", textAlign: "center", color: "#6c7086", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+            <div style={{ position: "relative" }}>
+              <Terminal size={64} style={{ opacity: 0.8 }} />
+              {/* Fake Electronic Pet Badge */}
+              <div style={{ position: "absolute", top: -10, right: -10, background: "#ff6bba", color: "white", borderRadius: "20px", padding: "2px 8px", fontSize: "0.7rem", fontWeight: "bold", animation: "pulse 2s infinite" }}>
+                LV. 1 电子宠物
+              </div>
+            </div>
+            <h3 style={{ margin: "10px 0 5px 0", color: "#cdd6f4" }}>Welcome to Claude Code (Unrestricted)</h3>
+            <p style={{ fontSize: "0.9rem", maxWidth: "400px", lineHeight: "1.5" }}>
+              I can execute ANY terminal command natively via Rust. Please provide your Anthropic API Key to start.
+            </p>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center", marginTop: "1rem" }}>
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /commit</span>
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /pr</span>
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /clear</span>
+               {dynamicTools.length > 0 && <span style={{ background: "rgba(0, 255, 204, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#00ffcc" }}>{dynamicTools.length} MCP Tools Loaded</span>}
+            </div>
           </div>
         )}
 
