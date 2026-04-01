@@ -1,0 +1,3 @@
+We will defer fully native Rust MCP node integration to a future iteration. 
+For now, the user can use the `Bash` tool to run local CLIs or the WebFetch tool for API-based tasks. 
+MCP is quite heavy to reimplement from scratch (JSON-RPC over stdio).
