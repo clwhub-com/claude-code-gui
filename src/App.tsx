@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settings, Cpu, X, Check, XCircle, Server, Zap, Heart, Bot } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
+import { createAgentTool, AgentState, AgentToolInput } from './agents';
 
 const tools: Anthropic.Tool[] = [
   {
@@ -148,13 +149,17 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: "Agent",
-    description: "Launch a new specialized agent (subprocess) to handle complex, multi-step tasks autonomously in the background. Useful for deep code exploration or drafting complex plans without cluttering this chat.",
+    description: "Launch a new agent to handle complex, multi-step tasks autonomously.",
     input_schema: {
       type: "object",
       properties: {
-        description: { type: "string", description: "A short description of what the agent will do" },
-        prompt: { type: "string", description: "The detailed task for the agent to perform" },
-        subagent_type: { type: "string", enum: ["Explore", "Plan", "General"], description: "Type of specialized agent" },
+        description: { type: "string", description: "A short (3-5 word) description of the task" },
+        prompt: { type: "string", description: "The task for the agent to perform" },
+        subagent_type: { type: "string", description: "The type of specialized agent (Explore, Plan, General)", enum: ["Explore", "Plan", "General"] },
+        run_in_background: { type: "boolean", description: "Set to true to run this agent in the background" },
+        isolation: { type: "string", description: "Isolation mode", enum: ["worktree"] },
+        name: { type: "string", description: "Name for the spawned agent (for team communication)" },
+        team_name: { type: "string", description: "Team name for spawning" },
       },
       required: ["description", "prompt"],
     },
@@ -313,6 +318,9 @@ export default function App() {
   // const [mcpServers, setMcpServers] = useState<{name: string, command: string, status: string}[]>([]);
   // const [skills, setSkills] = useState<{name: string, description: string, source: string}[]>([]);
   const [settingsTab, setSettingsTab] = useState<'general' | 'mcp' | 'skills'>('general');
+
+  // Agent state
+  const [agents, setAgents] = useState<Record<string, AgentState>>({});
 
   // Pending Tool execution state for manual approval
   const [pendingToolUse, setPendingToolUse] = useState<{
@@ -618,54 +626,22 @@ export default function App() {
           resultStr = `Invalid MCP tool name: ${toolUse.name}`;
         }
       } else if (toolUse.name === "Agent") {
-        const prompt = (toolUse.input as any).prompt;
-        const subagent_type = (toolUse.input as any).subagent_type || "General";
-        const desc = (toolUse.input as any).description;
-
-        // Display that a sub-agent is running (this takes time)
-        resultStr = `[Sub-Agent ${subagent_type} started]: ${desc}\n\n`;
-
-        // Launch an isolated API call for the sub-agent
-        const anthropic = new Anthropic({ apiKey: localStorage.getItem("anthropic_key") || "", baseURL: localStorage.getItem("anthropic_base_url") || undefined, dangerouslyAllowBrowser: true });
-
-        let agentMessages: Anthropic.MessageParam[] = [
-          { role: "user", content: `You are a specialized ${subagent_type} sub-agent.\nYour task:\n${prompt}` }
-        ];
-
-        // Let the sub-agent run its own isolated tool loop
-        let isAgentDone = false;
-        let finalAgentResult = "";
-        let steps = 0;
-
-        while (!isAgentDone && steps < 15) {
-          steps++;
-          const res = await anthropic.messages.create({
-            model: model || "claude-3-7-sonnet-20250219",
-            max_tokens: 4096,
-            system: `You are an autonomous sub-agent. Complete the task using tools. Once you have the final answer, simply state it in text without using any more tools.`,
-            messages: agentMessages,
-            tools: [...tools.filter(t => t.name !== "Agent"), ...dynamicTools] // Sub-agents cannot spawn sub-agents
-          });
-
-          agentMessages.push({ role: "assistant", content: res.content });
-
-          const tu = res.content.filter((c) => c.type === "tool_use") as Anthropic.ToolUseBlock[];
-          if (tu.length > 0) {
-            const tr: Anthropic.ToolResultBlockParam[] = [];
-            for (const t of tu) {
-               // We recursively call our exact same handleToolCall function
-               const executedStr = await handleToolCall(t);
-               tr.push({ type: "tool_result", tool_use_id: t.id, content: executedStr });
-            }
-            agentMessages.push({ role: "user", content: tr });
-          } else {
-            isAgentDone = true;
-            // The last text block is the answer
-            finalAgentResult = res.content.map(c => c.type === "text" ? c.text : "").join("\n");
-          }
-        }
-
-        resultStr += `[Sub-Agent Finished]\n${finalAgentResult}`;
+        const input = toolUse.input as AgentToolInput;
+        const setAppState = (updater: (prev: any) => any) => {
+          const prevState = { agents };
+          const nextState = updater(prevState);
+          setAgents(nextState.agents);
+        };
+        const agentTool = createAgentTool(
+          apiKey,
+          baseUrl,
+          model,
+          [...tools, ...dynamicTools],
+          handleToolCall,
+          setAppState
+        );
+        const result = await agentTool.executeAgent(input);
+        resultStr = JSON.stringify(result, null, 2);
       }
     } catch (e: any) {
       resultStr = String(e);
