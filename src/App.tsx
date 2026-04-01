@@ -786,7 +786,10 @@ export default function App() {
           }
         }
 
-        const response = await anthropic.messages.create({
+        // Streaming: Use stream API for real-time output
+        let streamedText = "";
+
+        const stream = anthropic.messages.stream({
           model: model || "claude-3-7-sonnet-20250219",
           max_tokens: 4096,
           system: [
@@ -800,16 +803,33 @@ export default function App() {
           tools: [...tools, ...dynamicTools],
         });
 
+        // Handle streaming text
+        stream.on('text', (text) => {
+          streamedText += text;
+          // Update UI with streamed text
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.role === "assistant" && typeof lastMsg.content === "string") {
+              newMessages[newMessages.length - 1] = { role: "assistant", content: streamedText };
+            } else {
+              newMessages.push({ role: "assistant", content: streamedText });
+            }
+            return newMessages;
+          });
+        });
+
+        // Wait for stream to complete
+        const response = await stream.finalMessage();
+
         // Calculate cost based on Sonnet 3.7 pricing (rough estimate)
-        // Output: $15/M tokens, Input: $3/M tokens, Cache read: $0.30/M tokens, Cache write: $3.75/M tokens
         if (response.usage) {
-          const u = response.usage as any; // Cast to any because the types might be missing cache fields
+          const u = response.usage as any;
           const inputTokens = u.input_tokens || 0;
           const outputTokens = u.output_tokens || 0;
           const cacheCreationTokens = u.cache_creation_input_tokens || 0;
           const cacheReadTokens = u.cache_read_input_tokens || 0;
 
-          // Subtract cache creation from input tokens because they are billed separately
           const standardInputTokens = Math.max(0, inputTokens - cacheCreationTokens);
 
           let cost = 0;
@@ -837,6 +857,7 @@ export default function App() {
           });
         }
 
+        // Final message with complete content (including tool_use blocks)
         currentMessages = [...currentMessages, { role: "assistant", content: response.content }];
         setMessages([...currentMessages]);
 
