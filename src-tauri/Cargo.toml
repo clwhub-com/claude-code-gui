@@ -46,4 +46,5 @@ async-std = "1.13.2"
 futures = "0.3.32"
 jsonrpc-core = "18.0.0"
 tauri-plugin-dialog = "2.6.0"
+dirs = "5.0.1"
 

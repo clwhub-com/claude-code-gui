@@ -1,0 +1,10 @@
+{
+  "auto_mode": true,
+  "mcp_servers": {
+    "sqlite": "npx -y @modelcontextprotocol/server-sqlite /tmp/test.db",
+    "brave": "npx -y @modelcontextprotocol/server-brave-search"
+  },
+  "hooks": {
+    "pre-message": "echo 'Hello from the pre-message hook!'"
+  }
+}

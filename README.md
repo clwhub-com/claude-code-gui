@@ -1,124 +1,84 @@
-# ⚡️ Claude Code GUI - 终极解除封印版 (Unrestricted Edition)
+# Claude Code GUI - Unrestricted Edition
 
-[🇨🇳 中文介绍](#-中文介绍) | [🇬🇧 English](#-english)
+![Claude Code GUI](src-tauri/icons/128x128.png)
 
----
+[English](#english) | [中文](#中文)
 
-<a name="-中文介绍"></a>
-## 🇨🇳 中文介绍
+<a name="english"></a>
+## 🚀 Overview (English)
 
-终于不用在枯燥的终端黑框框里敲代码了！我们使用 **Tauri (Rust) + React** 将 Anthropic 官方强大的 `Claude Code CLI` 进行了**彻底的重写与图形化**。这不仅仅是一个漂亮的壳子，我们直接拆掉了原版的所有“安全护栏”，为你带来了一个性能极强、极其自由的 AI 编程超级外脑！
+This is an unofficial, completely rewritten Graphical User Interface (GUI) for Anthropic's Claude Code CLI. It leverages **Tauri (Rust)** for the backend and **React** for the frontend to provide a beautiful, fast, and completely unrestricted AI coding assistant.
 
-### 🔥 我们和官方原版 CLI 有什么区别？(大白话对比)
+Unlike the official CLI, which runs in a sandboxed NodeJS environment with limited permissions, this GUI gives Claude **native OS-level access** through Rust.
 
-如果你是用来做宣传或者给团队安利，看这里就够了：
+### ✨ Features
 
-1. **告别黑框框，拥抱高颜值 GUI**
-   原版只能在终端里跑，看代码累眼睛。我们重写了赛博朋克玻璃拟物风的完整桌面端，有代码高亮、对话气泡、系统参数设置侧边栏，体验直线上升！
-2. **打破 NodeJS 沙盒，获取 Rust 级“神之权限”**
-   原版为了安全，把 Claude 关在了一个受限的 Node 沙盒里。我们底层直接换成了 Rust，Claude 现在可以直接原生调用系统底层的 bash 命令、无缝读写任意文件、甚至悄悄在后台拉起你的 `npm run dev` 进程（我们叫它“沙盒逃逸”）。
-3. **成本刺客：硬核注入 Prompt Caching (省钱高达 90%!)**
-   用过原版 CLI 的人都知道，读几个大文件后 API 费用简直在烧钱。我们在调用层**强行注入了 Anthropic 最新的 Ephemeral 提示词缓存标记**！长对话和巨大的代码库上下文会被完美缓存，而且我们在 UI 上做了一个粉色的 **精准计费面板**，花了几分钱一目了然。
-4. **进可“自动驾驶”，退可“绝对拦截”**
-   原版的权限审批比较繁琐。我们在系统里内置了物理开关：
-   -开启 **Auto Mode（自动模式）**：AI 彻底放飞自我，自己写代码、自己查 Bug、自己跑测试。
-   -开启 **安全模式**：当 AI 试图执行 `rm -rf` 或者删库跑路这种高危命令时，Rust 底层会**硬拦截**，并在界面上弹出一个巨大的警告框，只有你点击“允许执行”才会放行。
-5. **满血支持 MCP 生态与快捷指令**
-   想让 Claude 连你的本地数据库？想让它上网搜索？只需要在目录里建一个 `.clauderc` 文件配置好 MCP 服务，Rust 会自动拉起这些后台服务并接入大模型。此外，我们在输入框支持了 `/commit`、`/pr`、`/clear` 等快捷一键指令，大幅提升摸鱼效率。
+1. **Unrestricted Sandbox Escape**: Built in Rust. Claude can run any `bash` command, interact with the filesystem, and spawn background tasks natively.
+2. **Auto Mode & Hard Interception**: In "Safe Mode", if the model attempts to execute dangerous commands (`rm -rf`, `git push --force`), the Rust backend intercepts the call and presents a hard UI block for user approval. In "Auto Mode", it runs completely autonomously.
+3. **Prompt Caching & Cost Tracking**: Automatically injects Anthropic's `ephemeral` cache control markers to cut API costs by up to 90%. Includes a real-time token cost tracking dashboard.
+4. **MCP (Model Context Protocol) Support**: Dynamically load MCP servers (e.g., SQLite, Brave Search) by adding them to the `.clauderc` file. The Rust backend automatically spins up node/python sub-processes and wires them via JSON-RPC 2.0 directly to the Claude API.
+5. **Hooks System**: Define `pre-message` hooks in your `.clauderc` config to run shell commands automatically before API calls.
+6. **Built-in Skills**: Quick slash commands like `/commit`, `/pr`, and `/clear` mapped directly to complex AI workflows.
+7. **Background Tasks**: The model can spawn persistent background workers (like `npm run dev`) and fetch their logs dynamically via `CheckTask`.
 
----
+### 🛠 Installation & Build
 
-### 💻 技术细节与安装使用 (Technical Details)
-
-本项目基于 Tauri 2.0 和 Vite (React+TS) 构建。
-
-**1. 环境准备**
-确保你安装了 Node.js (>=18) 和 Rust 环境。
-
-**2. 安装与运行**
-```bash
-# 安装依赖
-npm install
-
-# 启动本地开发环境 (自动拉起桌面端)
-npm run tauri dev
-
-# 编译打包 (生成 Mac 的 .app/.dmg，或 Windows 的 .exe)
-npm run tauri build
-```
-
-**3. 配置 `.clauderc` (可选)**
-在你的项目根目录或用户主目录下创建一个 `.clauderc` (或 `.claude.json`)，即可解锁扩展能力：
-```json
-{
-  "auto_mode": false,
-  "mcp_servers": {
-    "sqlite": "npx -y @modelcontextprotocol/server-sqlite /tmp/test.db",
-    "brave": "npx -y @modelcontextprotocol/server-brave-search"
-  },
-  "hooks": {
-    "pre-message": "echo '即将发送消息给大模型！'"
-  }
-}
-```
-
----
-
-<br/>
-
-<a name="-english"></a>
-## 🇬🇧 English
-
-Tired of staring at a dull terminal window? We've completely rewritten Anthropic's official `Claude Code CLI` using **Tauri (Rust) + React** to give you a gorgeous Graphical User Interface (GUI). But this isn't just a pretty wrapper—we've removed the original sandboxing limitations to bring you an unbelievably powerful, unrestricted AI coding assistant.
-
-### 🔥 Why use this over the official CLI?
-
-If you want the quick pitch, here is what makes this GUI superior:
-
-1. **A Gorgeous GUI over Terminal Text**
-   The original CLI restricts you to a terminal. We built a beautiful, cyberpunk-inspired glassmorphism desktop app featuring proper code highlighting, chat bubbles, and an intuitive settings sidebar. 
-2. **Sandbox Escape: True OS-Level Power via Rust**
-   The official CLI runs in a restricted NodeJS sandbox. By using Rust as our backend engine, Claude now has native, unrestricted access to your OS. It can run any `bash` command natively, interact with your file system without arbitrary limits, and even spin up background tasks like `npm run dev`.
-3. **The Cost Killer: Aggressive Prompt Caching (Save up to 90%)**
-   Running the official CLI on large codebases burns through API credits fast. We've **force-injected Anthropic's Ephemeral Prompt Caching** into the API layer. Huge context windows are efficiently cached, and we've added a highly visible **Real-time Cost Tracker** to the UI so you know exactly what you're spending.
-4. **"Auto-Pilot" vs "Hard Interception"**
-   - **Auto Mode**: Claude operates entirely autonomously—writing code, debugging, and running tests without asking for permission.
-   - **Safe Mode**: If Claude attempts high-risk actions (like `rm -rf` or database drops), the Rust backend performs a **hard interception** and blocks execution until you explicitly click "Approve" on a prominent UI alert.
-5. **Full MCP Ecosystem & Slash Commands**
-   Want Claude to query your local database or search the web? Simply define MCP (Model Context Protocol) servers in your `.clauderc` file. The Rust backend automatically manages these services. We also support quick slash commands like `/commit`, `/pr`, and `/clear` right from the chat box to speed up your workflow.
-
----
-
-### 💻 Installation & Technical Setup
-
-Built with Tauri 2.0 and Vite (React+TS).
-
-**1. Prerequisites**
-Ensure you have Node.js (>=18) and Rust installed.
-
-**2. Run & Build**
 ```bash
 # Install dependencies
 npm install
 
-# Run the app in development mode
+# Run in development mode
 npm run tauri dev
 
-# Build the standalone application (macOS .app/.dmg, Windows .exe)
+# Build for production (macOS/Windows/Linux)
 npm run tauri build
 ```
 
-**3. Advanced Configuration (`.clauderc`)**
-Create a `.clauderc` (or `.claude.json`) file in your project root or home directory to enable MCP servers and hooks:
+---
+
+<a name="中文"></a>
+## 🚀 简介 (中文)
+
+这是一个非官方的、完全重写的 Anthropic Claude Code 命令行工具的图形化界面（GUI）版本。本项目采用 **Tauri (Rust)** 作为后端，**React** 作为前端，旨在提供一个美观、极速且完全不受限的 AI 编程助手。
+
+官方的 CLI 运行在带有严格权限限制的 NodeJS 沙盒中，而本项目通过 Rust 赋予了 Claude **原生操作系统级别的超级权限**。
+
+### ✨ 核心特性
+
+1. **无限制沙盒逃逸**：底层由 Rust 驱动，Claude 可以无缝执行任意 `bash` 命令、读写任意系统文件，甚至原生拉起后台常驻进程。
+2. **自动模式与硬拦截安全审批**：在“安全模式”下，当 AI 试图执行高危命令（如 `rm -rf`）时，Rust 后端会在 UI 层面强制拦截调用，弹出确认框要求用户审批。切换到“自动模式”后，AI 将获得完全自治权。
+3. **Prompt 提示词缓存与计费面板**：深度集成了 Anthropic 的 `ephemeral` 缓存断点技术，使长上下文的 API 费用骤降最高 90%。UI 左上角自带实时 Token 成本精确估算面板。
+4. **完整支持 MCP 扩展生态**：支持通过 `.clauderc` 配置文件动态加载第三方的 MCP（模型上下文协议）服务器（如本地查库、网页搜索）。Rust 后端会自动拉起并管理微服务，通过 JSON-RPC 2.0 原生接入 Claude 大模型。
+5. **Hooks 钩子系统**：在 `.clauderc` 中配置 `pre-message` 等钩子，即可在发消息前自动执行本地 Shell 脚本。
+6. **内置技能 (Skills)**：输入 `/commit`、`/pr`、`/clear` 等快捷指令，将自动展开为预设的复杂 AI 开发流。
+7. **后台任务管理**：模型可以主动拉起如 `npm run dev` 这样的长连接进程，并通过 `CheckTask` 工具动态读取标准输出日志。
+
+### 🛠 安装与编译
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器调试
+npm run tauri dev
+
+# 编译为生产环境安装包 (dmg / exe)
+npm run tauri build
+```
+
+### 📝 配置文件示例 (`.clauderc`)
+
+你可以将以下内容保存为当前项目或用户根目录下的 `.clauderc` (或 `.claude.json`)：
+
 ```json
 {
-  "auto_mode": false,
+  "auto_mode": true,
   "mcp_servers": {
     "sqlite": "npx -y @modelcontextprotocol/server-sqlite /tmp/test.db",
     "brave": "npx -y @modelcontextprotocol/server-brave-search"
   },
   "hooks": {
-    "pre-message": "echo 'Sending message to Claude!'"
+    "pre-message": "echo 'Hello from the pre-message hook!'"
   }
 }
 ```
