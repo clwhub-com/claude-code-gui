@@ -276,10 +276,51 @@ export default function App() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  const [dynamicTools, setDynamicTools] = useState<Anthropic.Tool[]>([]);
+
   useEffect(() => {
     // Load memory on startup
     invoke("read_memory_files").then((res: any) => {
       setMemoryContext(res as string);
+    }).catch(console.error);
+
+    // Initialize MCP Servers from config
+    invoke("get_config").then(async (cfgStr: any) => {
+      try {
+        const config = JSON.parse(cfgStr);
+        if (config.mcp_servers) {
+          let loadedTools: Anthropic.Tool[] = [];
+          for (const [serverName, command] of Object.entries(config.mcp_servers)) {
+            try {
+              console.log(`Starting MCP server: ${serverName}`);
+              await invoke("mcp_start_server", { name: serverName, command: command as string });
+
+              // Wait a tiny bit for init
+              await new Promise(r => setTimeout(r, 1000));
+
+              const mcpToolsRes: any = await invoke("mcp_list_tools", { serverName });
+              if (mcpToolsRes && mcpToolsRes.tools) {
+                // Map MCP tools to Anthropic tool format
+                // MCP format: { name, description, inputSchema }
+                const mapped = mcpToolsRes.tools.map((t: any) => ({
+                  name: `mcp__${serverName}__${t.name.replace(/[^a-zA-Z0-9_-]/g, '_')}`, // namespace it
+                  description: t.description || `Tool from MCP server ${serverName}`,
+                  input_schema: t.inputSchema || { type: "object", properties: {} }
+                }));
+                loadedTools = [...loadedTools, ...mapped];
+                console.log(`Loaded ${mapped.length} tools from ${serverName}`);
+              }
+            } catch (e) {
+              console.error(`Failed to load MCP server ${serverName}:`, e);
+            }
+          }
+          if (loadedTools.length > 0) {
+            setDynamicTools(loadedTools);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse config for MCP:", e);
+      }
     }).catch(console.error);
   }, []);
 
@@ -406,7 +447,23 @@ export default function App() {
       } else if (toolUse.name === "ExitWorktree") {
         const { action, discard_changes } = toolUse.input as any;
         resultStr = await invoke("exit_worktree", { action, discardChanges: discard_changes });
-} else if (toolUse.name === "Agent") {
+      } else if (toolUse.name.startsWith("mcp__")) {
+        const parts = toolUse.name.split("__");
+        if (parts.length >= 3) {
+          const serverName = parts[1];
+          const toolName = parts.slice(2).join("__");
+          const args = toolUse.input;
+
+          try {
+             const mcpRes: any = await invoke("mcp_call_tool", { serverName, toolName, args });
+             resultStr = typeof mcpRes === 'string' ? mcpRes : JSON.stringify(mcpRes, null, 2);
+          } catch (mcpErr) {
+             resultStr = `MCP Tool Execution Failed: ${mcpErr}`;
+          }
+        } else {
+          resultStr = `Invalid MCP tool name: ${toolUse.name}`;
+        }
+      } else if (toolUse.name === "Agent") {
         const prompt = (toolUse.input as any).prompt;
         const subagent_type = (toolUse.input as any).subagent_type || "General";
         const desc = (toolUse.input as any).description;
@@ -433,7 +490,7 @@ export default function App() {
             max_tokens: 4096,
             system: `You are an autonomous sub-agent. Complete the task using tools. Once you have the final answer, simply state it in text without using any more tools.`,
             messages: agentMessages,
-            tools: tools.filter(t => t.name !== "Agent") // Sub-agents cannot spawn sub-agents
+            tools: [...tools.filter(t => t.name !== "Agent"), ...dynamicTools] // Sub-agents cannot spawn sub-agents
           });
 
           agentMessages.push({ role: "assistant", content: res.content });
@@ -465,15 +522,52 @@ export default function App() {
   async function sendMessage() {
     if (!input.trim() || !apiKey) return;
 
+    const trimmedInput = input.trim();
+
+    // Process local slash commands first
+    if (trimmedInput === "/clear") {
+      clearHistory();
+      setInput("");
+      return;
+    }
+    if (trimmedInput === "/commit") {
+       // Convert to natural language prompt for the agent
+       setInput("");
+       await processCommand("Review the current git status and git diff, then write a concise conventional commit message and commit the changes.");
+       return;
+    }
+    if (trimmedInput === "/pr") {
+       setInput("");
+       await processCommand("Review the current git branch and changes, push to origin if needed, and create a GitHub PR using the `gh` CLI with a good title and description.");
+       return;
+    }
+
+    setInput("");
+    await processCommand(trimmedInput);
+  }
+
+  async function processCommand(userText: string) {
     const anthropic = new Anthropic({
       apiKey: apiKey,
       baseURL: baseUrl || undefined,
       dangerouslyAllowBrowser: true // Since this runs in Tauri WebView
     });
 
+    // Run pre-message hook if it exists
+    try {
+      const hookOut = await invoke("run_hook", { hookName: "pre-message" });
+      if (hookOut && typeof hookOut === "string" && hookOut.trim().length > 0) {
+        console.log("pre-message hook output:", hookOut);
+      }
+    } catch (e) {
+      console.warn("pre-message hook failed:", e);
+      // We can optionally display this as a system warning in chat
+      setMessages(prev => [...prev, { role: "assistant", content: `[SYSTEM WARNING: pre-message hook failed]\n${e}` }]);
+    }
+
     const userMessage: Anthropic.MessageParam = {
       role: "user",
-      content: input,
+      content: userText,
     };
 
     const newMessages = [...messages, userMessage];
@@ -553,7 +647,7 @@ export default function App() {
             }
           ],
           messages: messagesWithCache,
-          tools: tools,
+          tools: [...tools, ...dynamicTools],
         });
 
         // Calculate cost based on Sonnet 3.7 pricing (rough estimate)

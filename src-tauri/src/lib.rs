@@ -19,6 +19,9 @@ use mime;
 use chrono;
 use std::str::FromStr;
 
+mod mcp;
+use mcp::McpManager;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TodoItem {
     pub content: String,
@@ -43,6 +46,7 @@ struct AppState {
     cron_jobs: Arc<Mutex<HashMap<String, CronJob>>>,
     active_worktree: Arc<Mutex<Option<String>>>,
     original_cwd: Arc<Mutex<Option<String>>>,
+    mcp_manager: Arc<tokio::sync::Mutex<McpManager>>,
 }
 
 impl Default for AppState {
@@ -54,6 +58,7 @@ impl Default for AppState {
             cron_jobs: Arc::new(Mutex::new(HashMap::new())),
             active_worktree: Arc::new(Mutex::new(None)),
             original_cwd: Arc::new(Mutex::new(None)),
+            mcp_manager: Arc::new(tokio::sync::Mutex::new(McpManager::new())),
         }
     }
 }
@@ -512,6 +517,71 @@ fn get_context_info() -> Result<String, String> {
 }
 
 // ----------------------
+// Hooks & Config (.clauderc)
+// ----------------------
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct ClaudeConfig {
+    #[serde(default)]
+    pub auto_mode: bool,
+    #[serde(default)]
+    pub mcp_servers: HashMap<String, String>, // Name -> Start Command
+    #[serde(default)]
+    pub hooks: HashMap<String, String>, // Hook name (e.g., "pre-message") -> Shell Command
+}
+
+#[tauri::command]
+fn get_config() -> Result<String, String> {
+    // Look for .clauderc in the current directory or home directory
+    let mut config_path = std::path::PathBuf::from(".clauderc");
+    if !config_path.exists() {
+        if let Some(home) = dirs::home_dir() {
+            config_path = home.join(".claude.json");
+        }
+    }
+
+    if config_path.exists() {
+        fs::read_to_string(&config_path).map_err(|e| e.to_string())
+    } else {
+        // Return an empty config object if none found
+        Ok(json!(ClaudeConfig::default()).to_string())
+    }
+}
+
+#[tauri::command]
+async fn run_hook(hook_name: String) -> Result<String, String> {
+    let config_str = get_config().unwrap_or_else(|_| "{}".to_string());
+    if let Ok(config) = serde_json::from_str::<ClaudeConfig>(&config_str) {
+        if let Some(cmd) = config.hooks.get(&hook_name) {
+            println!("Running hook [{}]: {}", hook_name, cmd);
+            let output = if cfg!(target_os = "windows") {
+                Command::new("cmd")
+                    .args(["/C", cmd])
+                    .output()
+            } else {
+                Command::new("sh")
+                    .args(["-c", cmd])
+                    .output()
+            };
+
+            match output {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                    if out.status.success() {
+                        return Ok(stdout);
+                    } else {
+                        return Err(format!("Hook [{}] failed: {}\n{}", hook_name, stderr, stdout));
+                    }
+                }
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    // No hook defined, which is fine
+    Ok(String::new())
+}
+
+// ----------------------
 // Web Search
 // ----------------------
 #[tauri::command]
@@ -696,6 +766,27 @@ fn cron_delete(id: String, state: tauri::State<'_, AppState>) -> Result<String, 
     }
 }
 
+// ----------------------
+// MCP Integration
+// ----------------------
+#[tauri::command]
+async fn mcp_start_server(name: String, command: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mcp = state.mcp_manager.lock().await;
+    mcp.start_server(name, command).await
+}
+
+#[tauri::command]
+async fn mcp_list_tools(server_name: String, state: tauri::State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let mcp = state.mcp_manager.lock().await;
+    mcp.list_tools(&server_name).await
+}
+
+#[tauri::command]
+async fn mcp_call_tool(server_name: String, tool_name: String, args: serde_json::Value, state: tauri::State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let mcp = state.mcp_manager.lock().await;
+    mcp.call_tool(&server_name, &tool_name, args).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -725,7 +816,12 @@ pub fn run() {
             cron_create,
             cron_list,
             cron_delete,
-            set_working_directory
+            set_working_directory,
+            get_config,
+            run_hook,
+            mcp_start_server,
+            mcp_list_tools,
+            mcp_call_tool
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
