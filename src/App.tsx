@@ -299,6 +299,10 @@ export default function App() {
     const saved = localStorage.getItem("claude_total_cost");
     return saved ? parseFloat(saved) : 0;
   });
+  const [totalTokens, setTotalTokens] = useState(() => {
+    const saved = localStorage.getItem("claude_total_tokens");
+    return saved ? parseInt(saved) : 0;
+  });
   const [memoryContext, setMemoryContext] = useState("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -830,6 +834,14 @@ export default function App() {
           const cacheCreationTokens = u.cache_creation_input_tokens || 0;
           const cacheReadTokens = u.cache_read_input_tokens || 0;
 
+          // Update total tokens
+          const totalUsed = inputTokens + outputTokens;
+          setTotalTokens(prev => {
+            const next = prev + totalUsed;
+            localStorage.setItem("claude_total_tokens", next.toString());
+            return next;
+          });
+
           const standardInputTokens = Math.max(0, inputTokens - cacheCreationTokens);
 
           let cost = 0;
@@ -921,7 +933,7 @@ export default function App() {
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255, 107, 186, 0.1)", border: "1px solid rgba(255, 107, 186, 0.3)", padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", color: "#ff6bba", fontWeight: "bold" }}>
-            {t.totalCost}: ${totalCost.toFixed(4)}
+            {t.totalCost}: ${totalCost.toFixed(4)} | {totalTokens.toLocaleString()} tok
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: autoMode ? "rgba(0, 255, 204, 0.1)" : "rgba(255, 255, 255, 0.05)", border: `1px solid ${autoMode ? "rgba(0, 255, 204, 0.3)" : "rgba(255, 255, 255, 0.1)"}`, padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", transition: "all 0.3s" }}>
             <ShieldAlert size={14} color={autoMode ? "#00ffcc" : "#a0a0a0"} />
