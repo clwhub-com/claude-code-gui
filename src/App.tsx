@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Anthropic from "@anthropic-ai/sdk";
-import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settings, Cpu, X, Check, XCircle, Server, Zap, Heart, Bot } from "lucide-react";
+import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settings, Cpu, X, Check, XCircle, Server, Zap, Globe } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import { createAgentTool, AgentState, AgentToolInput } from './agents';
@@ -9,6 +9,7 @@ import { Skill } from './skills/types';
 import { loadAllSkills } from './skills/loadSkillsDir';
 import { BUNDLED_SKILLS } from './skills/bundledSkills';
 import { Plugin, loadPluginsFromDir, BUILTIN_PLUGINS } from './plugins';
+import { zh, en, Translations } from './i18n';
 
 const tools: Anthropic.Tool[] = [
   {
@@ -252,32 +253,17 @@ If the user explicitly asks you to remember something, save it immediately using
 `;
 
 // Slash command definitions
-const slashCommands = [
-  {
-    name: "clear",
-    description: "Clear the chat history",
-    type: "builtin"
-  },
-  {
-    name: "commit",
-    description: "Review git status and diff, write conventional commit, and commit changes",
-    type: "builtin"
-  },
-  {
-    name: "pr",
-    description: "Review git branch and changes, push to origin, and create a GitHub PR",
-    type: "builtin"
-  },
-  {
-    name: "help",
-    description: "Show help information about available commands",
-    type: "builtin"
-  }
+// Slash commands will be generated dynamically based on language
+const getSlashCommands = (t: Translations) => [
+  { name: "clear", description: t.clearDesc, type: "builtin" },
+  { name: "commit", description: t.commitDesc, type: "builtin" },
+  { name: "pr", description: t.prDesc, type: "builtin" },
+  { name: "help", description: t.helpDesc, type: "builtin" }
 ];
 
 // Simple fuzzy search for command suggestions
-function searchCommands(query: string, skills: Skill[]): (typeof slashCommands[0] | { name: string; description: string; type: string; skill: Skill })[] {
-  const commands: (typeof slashCommands[0] | { name: string; description: string; type: string; skill: Skill })[] = [...slashCommands];
+function searchCommands(query: string, skills: Skill[], t: Translations): any[] {
+  const commands: any[] = [...getSlashCommands(t)];
 
   // Add skills as slash commands
   for (const skill of skills) {
@@ -317,22 +303,17 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Language state
+  const [lang, setLang] = useState(() => localStorage.getItem("claude_lang") || "zh");
+  const t = lang === "zh" ? zh : en;
+  const slashCommands = getSlashCommands(t);
+
   // Slash command autocomplete state
-  const [suggestions, setSuggestions] = useState<typeof slashCommands>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
 
-  // Electronic Pet state
-  // const [petVisible, setPetVisible] = useState(true);
-  const [petLevel, setPetLevel] = useState(1);
-  const [petXP, setPetXP] = useState(0);
-  const [petMood, setPetMood] = useState<'happy' | 'neutral' | 'sad' | 'excited'>('neutral');
-  const [petSpeech, setPetSpeech] = useState<string | null>(null);
-  const [petHearts, setPetHearts] = useState<number>(0);
-
   // MCP and Skills management state
-  // const [mcpServers, setMcpServers] = useState<{name: string, command: string, status: string}[]>([]);
-  // const [skills, setSkills] = useState<{name: string, description: string, source: string}[]>([]);
   const [settingsTab, setSettingsTab] = useState<'general' | 'mcp' | 'skills'>('general');
 
   // Agent state
@@ -449,7 +430,7 @@ export default function App() {
     // Check if we should show command suggestions
     if (value.startsWith("/")) {
       const query = value.slice(1).toLowerCase();
-      const results = searchCommands(query, skills);
+      const results = searchCommands(query, skills, t);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
       setSelectedSuggestionIndex(0);
@@ -465,7 +446,7 @@ export default function App() {
       // If no suggestions, check if we should trigger on "/" key
       if (e.key === "/" && input === "") {
         setInput("/");
-        const results = searchCommands("", skills);
+        const results = searchCommands("", skills, t);
         setSuggestions(results);
         setShowSuggestions(results.length > 0);
         setSelectedSuggestionIndex(0);
@@ -515,36 +496,11 @@ export default function App() {
     }
   };
 
-  // Electronic Pet interactions
-  const handlePetClick = () => {
-    // Increase hearts count for petting animation
-    setPetHearts(3);
-    setTimeout(() => setPetHearts(0), 2000);
-
-    // Update pet mood and XP
-    setPetMood('happy');
-    const newXP = petXP + 10;
-    if (newXP >= 100) {
-      setPetLevel(petLevel + 1);
-      setPetXP(newXP - 100);
-      setPetSpeech(`Level ${petLevel + 1}! 🎉`);
-    } else {
-      setPetXP(newXP);
-    }
-
-    // Random speech
-    const messages = [
-      "Hello!",
-      "I'm your coding buddy!",
-      "Great job!",
-      "What's next?",
-      "You're awesome!",
-      "Thanks for petting me!",
-      "Coding is fun!"
-    ];
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    setPetSpeech(randomMessage);
-    setTimeout(() => setPetSpeech(null), 3000);
+  // Language toggle
+  const toggleLang = () => {
+    const newLang = lang === "zh" ? "en" : "zh";
+    setLang(newLang);
+    localStorage.setItem("claude_lang", newLang);
   };
 
   const selectWorkspace = async () => {
@@ -557,7 +513,7 @@ export default function App() {
       console.log(res);
       setWorkspace(selected as string);
       // Optional: Add a system message letting the user know the workspace changed
-      setMessages(prev => [...prev, { role: "user", content: `[系统通知: 空间锚点已切换至 ${selected}]` }, { role: "assistant", content: `已收到空间坐标。我当前的操作锚点已变更为 ${selected}。` }]);
+      setMessages(prev => [...prev, { role: "user", content: `[${t.systemNotify}: ${t.workspaceChanged} ${selected}]` }, { role: "assistant", content: `${t.received} ${selected}.` }]);
     }
   };
 
@@ -940,17 +896,20 @@ export default function App() {
       {/* Header */}
       <div className="glass-panel" style={{ padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
         <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "10px", fontSize: "1.2rem", fontWeight: 800, background: "var(--holo-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          <Sparkles size={24} color="#795bff" /> 全息核心 (Claude)
+          <Sparkles size={24} color="#795bff" /> {t.title}
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255, 107, 186, 0.1)", border: "1px solid rgba(255, 107, 186, 0.3)", padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", color: "#ff6bba", fontWeight: "bold" }}>
-            Total Cost: ${totalCost.toFixed(4)}
+            {t.totalCost}: ${totalCost.toFixed(4)}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: autoMode ? "rgba(0, 255, 204, 0.1)" : "rgba(255, 255, 255, 0.05)", border: `1px solid ${autoMode ? "rgba(0, 255, 204, 0.3)" : "rgba(255, 255, 255, 0.1)"}`, padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", transition: "all 0.3s" }}>
             <ShieldAlert size={14} color={autoMode ? "#00ffcc" : "#a0a0a0"} />
-            <span style={{ color: autoMode ? "#00ffcc" : "#a0a0a0", fontWeight: autoMode ? "bold" : "normal" }}>{autoMode ? "自动模式已启动" : "安全模式"}</span>
+            <span style={{ color: autoMode ? "#00ffcc" : "#a0a0a0", fontWeight: autoMode ? "bold" : "normal" }}>{autoMode ? t.autoModeActive : t.safeMode}</span>
           </div>
-          <button onClick={() => setSettingsOpen(true)} className="holo-btn" style={{ padding: "8px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }} title="系统设置">
+          <button onClick={toggleLang} className="holo-btn" style={{ padding: "8px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }} title={t.language}>
+            <Globe size={18} />
+          </button>
+          <button onClick={() => setSettingsOpen(true)} className="holo-btn" style={{ padding: "8px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }} title={t.settings}>
             <Settings size={18} />
           </button>
         </div>
@@ -960,7 +919,7 @@ export default function App() {
       <div className={`sidebar-overlay ${settingsOpen ? 'open' : ''}`} onClick={(e) => { if(e.target === e.currentTarget) setSettingsOpen(false); }}>
         <div className="settings-sidebar">
           <div className="settings-header">
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><Cpu size={20} /> 系统参数设定</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><Cpu size={20} /> {t.settingsTitle}</div>
             <button className="close-btn" onClick={() => setSettingsOpen(false)}><X size={20} /></button>
           </div>
 
@@ -981,7 +940,7 @@ export default function App() {
                 fontSize: "0.85rem"
               }}
             >
-              通用
+              {t.general}
             </button>
             <button
               onClick={() => setSettingsTab('mcp')}
@@ -1002,7 +961,7 @@ export default function App() {
                 gap: "6px"
               }}
             >
-              <Server size={14} /> MCP
+              <Server size={14} /> {t.mcp}
             </button>
             <button
               onClick={() => setSettingsTab('skills')}
@@ -1023,14 +982,14 @@ export default function App() {
                 gap: "6px"
               }}
             >
-              <Zap size={14} /> 技能
+              <Zap size={14} /> {t.skills}
             </button>
           </div>
 
           {settingsTab === 'general' && (
             <>
               <div className="setting-group">
-                <label className="setting-label">API 密钥 (Anthropic)</label>
+                <label className="setting-label">{t.apiKeyLabel}</label>
                 <div style={{ position: "relative" }}>
                   <Key size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "rgba(255,255,255,0.5)" }} />
                   <input
@@ -1045,7 +1004,7 @@ export default function App() {
               </div>
 
               <div className="setting-group">
-                <label className="setting-label">模型引擎</label>
+                <label className="setting-label">{t.modelLabel}</label>
                 <input
                   className="holo-input"
                   type="text"
@@ -1057,11 +1016,11 @@ export default function App() {
               </div>
 
               <div className="setting-group">
-                <label className="setting-label">API 代理节点 (Base URL)</label>
+                <label className="setting-label">{t.baseUrlLabel}</label>
                 <input
                   className="holo-input"
                   type="text"
-                  placeholder="默认官方节点 (留空)"
+                  placeholder={t.baseUrlPlaceholder}
                   value={baseUrl}
                   onChange={(e) => saveBaseUrl(e.target.value)}
                   style={{ padding: "8px", borderRadius: "6px", width: "100%" }}
@@ -1069,17 +1028,17 @@ export default function App() {
               </div>
 
               <div className="setting-group" style={{ marginTop: "1rem" }}>
-                <label className="setting-label">目标工作区 (Workspace)</label>
+                <label className="setting-label">{t.workspaceLabel}</label>
                 <button onClick={selectWorkspace} className="holo-btn" style={{ padding: "10px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
-                  <FolderOpen size={16} /> 变更目录
+                  <FolderOpen size={16} /> {t.changeDir}
                 </button>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", wordBreak: "break-all", marginTop: "4px" }}>当前: {workspace}</div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", wordBreak: "break-all", marginTop: "4px" }}>{t.current}: {workspace}</div>
               </div>
 
               <div className="setting-group" style={{ marginTop: "1rem", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontWeight: "bold", fontSize: "0.95rem" }}>Auto Mode</label>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>允许AI免许可执行系统指令</span>
+                  <label style={{ fontWeight: "bold", fontSize: "0.95rem" }}>{t.autoModeLabel}</label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t.autoModeDesc}</span>
                 </div>
                 <label className="toggle-switch">
                   <input type="checkbox" checked={autoMode} onChange={(e) => toggleAutoMode(e.target.checked)} />
@@ -1089,7 +1048,7 @@ export default function App() {
 
               <div style={{ marginTop: "auto" }}>
                  <button onClick={clearHistory} className="holo-btn" style={{ background: "rgba(255,0,0,0.2)", padding: "10px", borderRadius: "6px", width: "100%" }}>
-                    清空对话历史
+                    {t.clearHistory}
                  </button>
               </div>
             </>
@@ -1098,9 +1057,9 @@ export default function App() {
           {settingsTab === 'mcp' && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div className="setting-group">
-                <label className="setting-label">MCP 服务器管理</label>
+                <label className="setting-label">{t.mcpServerManagement}</label>
                 <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
-                  在 .clauderc 配置文件中定义 MCP 服务器。已加载 {dynamicTools.length} 个工具。
+                  {dynamicTools.length} {t.mcpToolsLoaded}
                 </p>
               </div>
 
@@ -1131,7 +1090,7 @@ export default function App() {
                           <span style={{ fontWeight: 600, color: "#00ffcc" }}>{serverName}</span>
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          {dynamicTools.filter(t => t.name.startsWith(`mcp__${serverName}__`)).length} 个工具
+                          {dynamicTools.filter(t => t.name.startsWith(`mcp__${serverName}__`)).length} {t.tools}
                         </div>
                       </div>
                     ))}
@@ -1139,7 +1098,7 @@ export default function App() {
                 ) : (
                   <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
                     <Server size={32} style={{ opacity: 0.3, marginBottom: "8px" }} />
-                    <p style={{ fontSize: "0.85rem" }}>暂无已加载的 MCP 服务器</p>
+                    <p style={{ fontSize: "0.85rem" }}>{t.noMcpServers}</p>
                   </div>
                 )}
               </div>
@@ -1149,15 +1108,15 @@ export default function App() {
           {settingsTab === 'skills' && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div className="setting-group">
-                <label className="setting-label">技能 & 命令</label>
+                <label className="setting-label">{t.skillsAndCommands}</label>
                 <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
-                  已加载 {skills.length} 个技能，{plugins.length} 个插件，使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发
+                  {skills.length} {t.skillsLoaded}，{plugins.length} {t.pluginsLoaded}，{t.slashCommandHint} <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> {t.quickTrigger}
                 </p>
               </div>
 
               {plugins.length > 0 && (
                 <div style={{ marginBottom: "12px" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "6px" }}>已加载插件</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "6px" }}>{t.loadedPlugins}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                     {plugins.map((plugin) => (
                       <span key={plugin.name} style={{
@@ -1266,124 +1225,18 @@ export default function App() {
             <div style={{ position: "relative" }}>
               <Terminal size={64} style={{ opacity: 0.8 }} />
             </div>
-            <h3 style={{ margin: "10px 0 5px 0", color: "#cdd6f4" }}>Welcome to Claude Code (Unrestricted)</h3>
+            <h3 style={{ margin: "10px 0 5px 0", color: "#cdd6f4" }}>{t.welcomeTitle}</h3>
             <p style={{ fontSize: "0.9rem", maxWidth: "400px", lineHeight: "1.5" }}>
-              I can execute ANY terminal command natively via Rust. Please provide your Anthropic API Key to start.
+              {t.welcomeDesc}
             </p>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center", marginTop: "1rem" }}>
-               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /commit</span>
-               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /pr</span>
-               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>Try: /clear</span>
-               {dynamicTools.length > 0 && <span style={{ background: "rgba(0, 255, 204, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#00ffcc" }}>{dynamicTools.length} MCP Tools Loaded</span>}
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>{t.tryCommands}: /commit</span>
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>{t.tryCommands}: /pr</span>
+               <span style={{ background: "rgba(121, 91, 255, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#b4befe" }}>{t.tryCommands}: /clear</span>
+               {dynamicTools.length > 0 && <span style={{ background: "rgba(0, 255, 204, 0.2)", padding: "4px 10px", borderRadius: "15px", fontSize: "0.8rem", color: "#00ffcc" }}>{dynamicTools.length} {t.mcpTools}</span>}
             </div>
           </div>
         )}
-
-        {/* Electronic Pet (Bottom Right) */}
-        {/* {petVisible && ( */}
-        <div
-            onClick={handlePetClick}
-            style={{
-              position: "absolute",
-              bottom: "20px",
-              right: "20px",
-              cursor: "pointer",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              zIndex: 50
-            }}
-          >
-            {/* Speech bubble */}
-            {petSpeech && (
-              <div style={{
-                background: "var(--glass-bg)",
-                backdropFilter: "blur(16px)",
-                border: "1px solid var(--glass-border)",
-                padding: "8px 14px",
-                borderRadius: "16px",
-                marginBottom: "8px",
-                fontSize: "0.8rem",
-                color: "var(--text-main)",
-                maxWidth: "180px",
-                textAlign: "center",
-                animation: "fadeIn 0.2s ease-out"
-              }}>
-                {petSpeech}
-              </div>
-            )}
-
-            {/* Hearts animation */}
-            {petHearts > 0 && (
-              <div style={{ position: "absolute", bottom: "40px", display: "flex", gap: "5px" }}>
-                {[...Array(petHearts)].map((_, i) => (
-                  <Heart
-                    key={i}
-                    size={16}
-                    color="#ff6bba"
-                    fill="#ff6bba"
-                    style={{
-                      animation: `floatHeart ${1 + i * 0.2}s ease-out forwards`,
-                      opacity: 0,
-                      position: "relative"
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Pet avatar */}
-            <div style={{
-              background: "var(--holo-gradient)",
-              borderRadius: "50%",
-              padding: "12px",
-              boxShadow: "0 4px 15px rgba(255, 107, 186, 0.4)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-              animation: petMood === 'excited' ? "pulse 1s infinite" : "none"
-            }}>
-              <Bot size={28} color="white" />
-
-              {/* Level badge */}
-              <div style={{
-                position: "absolute",
-                top: "-5px",
-                right: "-5px",
-                background: "#ff6bba",
-                color: "white",
-                borderRadius: "50%",
-                width: "24px",
-                height: "24px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.7rem",
-                fontWeight: "bold",
-                boxShadow: "0 2px 8px rgba(255, 107, 186, 0.5)"
-              }}>
-                {petLevel}
-              </div>
-            </div>
-
-            {/* XP bar */}
-            <div style={{
-              width: "60px",
-              height: "4px",
-              background: "rgba(255,255,255,0.1)",
-              borderRadius: "2px",
-              marginTop: "6px",
-              overflow: "hidden"
-            }}>
-              <div style={{
-                width: `${petXP}%`,
-                height: "100%",
-                background: "var(--holo-gradient)",
-                transition: "width 0.3s ease"
-              }} />
-            </div>
-          </div>
 
         {messages.map((m, idx) => (
           <div key={idx} style={{
@@ -1482,18 +1335,18 @@ export default function App() {
 
         {pendingToolUse && (
           <div style={{ padding: "12px", marginBottom: "12px", background: "rgba(255, 107, 186, 0.1)", border: "1px solid rgba(255, 107, 186, 0.3)", borderRadius: "8px" }}>
-            <h4 style={{ color: "#ff6bba", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "8px" }}><ShieldAlert size={16} /> 拦截到敏感操作</h4>
+            <h4 style={{ color: "#ff6bba", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "8px" }}><ShieldAlert size={16} /> {t.sensitiveOperation}</h4>
             <div style={{ fontSize: "0.9rem", color: "#cdd6f4", marginBottom: "12px" }}>
-              Claude 试图在安全模式下执行高危工具调用：
+              {t.autoModeWarning}
               <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
-                {pendingToolUse.toolUses.map((t, i) => (
-                  <li key={i}><code>{t.name}</code>: {JSON.stringify(t.input)}</li>
+                {pendingToolUse.toolUses.map((tu, i) => (
+                  <li key={i}><code>{tu.name}</code>: {JSON.stringify(tu.input)}</li>
                 ))}
               </ul>
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={() => pendingToolUse.resolve([])} style={{ flex: 1, padding: "8px", background: "rgba(0, 255, 204, 0.2)", color: "#00ffcc", border: "1px solid rgba(0, 255, 204, 0.5)", borderRadius: "6px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}><Check size={16}/> 允许执行</button>
-              <button onClick={() => pendingToolUse.reject(new Error("用户拒绝了执行"))} style={{ flex: 1, padding: "8px", background: "rgba(255, 0, 0, 0.2)", color: "#ff8888", border: "1px solid rgba(255, 0, 0, 0.5)", borderRadius: "6px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}><XCircle size={16}/> 拒绝调用</button>
+              <button onClick={() => pendingToolUse.resolve([])} style={{ flex: 1, padding: "8px", background: "rgba(0, 255, 204, 0.2)", color: "#00ffcc", border: "1px solid rgba(0, 255, 204, 0.5)", borderRadius: "6px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}><Check size={16}/> {t.allowExecute}</button>
+              <button onClick={() => pendingToolUse.reject(new Error(t.userRejected))} style={{ flex: 1, padding: "8px", background: "rgba(255, 0, 0, 0.2)", color: "#ff8888", border: "1px solid rgba(255, 0, 0, 0.5)", borderRadius: "6px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}><XCircle size={16}/> {t.rejectCall}</button>
             </div>
           </div>
         )}
@@ -1503,7 +1356,7 @@ export default function App() {
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading || !apiKey}
-            placeholder={apiKey ? "Ask Claude to run a command or write code... (try / for commands)" : "Please enter API Key first"}
+            placeholder={apiKey ? t.placeholder : t.placeholderNoKey}
             style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #313244", backgroundColor: "#181825", color: "white", fontSize: "16px" }}
           />
           <button
@@ -1511,7 +1364,7 @@ export default function App() {
             disabled={loading || !input.trim() || !apiKey}
             style={{ padding: "12px 24px", borderRadius: "8px", backgroundColor: "#89b4fa", color: "#11111b", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontWeight: "bold" }}
           >
-            <Send size={18} /> Send
+            <Send size={18} /> {t.send}
           </button>
         </form>
       </div>
