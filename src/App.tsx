@@ -5,6 +5,9 @@ import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settin
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import { createAgentTool, AgentState, AgentToolInput } from './agents';
+import { Skill } from './skills/types';
+import { loadAllSkills } from './skills/loadSkillsDir';
+import { BUNDLED_SKILLS } from './skills/bundledSkills';
 
 const tools: Anthropic.Tool[] = [
   {
@@ -272,11 +275,23 @@ const slashCommands = [
 ];
 
 // Simple fuzzy search for command suggestions
-function searchCommands(query: string): typeof slashCommands {
-  if (!query) return slashCommands;
+function searchCommands(query: string, skills: Skill[]): (typeof slashCommands[0] | { name: string; description: string; type: string; skill: Skill })[] {
+  const commands: (typeof slashCommands[0] | { name: string; description: string; type: string; skill: Skill })[] = [...slashCommands];
+
+  // Add skills as slash commands
+  for (const skill of skills) {
+    commands.push({
+      name: skill.name,
+      description: skill.description,
+      type: 'skill',
+      skill,
+    });
+  }
+
+  if (!query) return commands;
 
   const lowerQuery = query.toLowerCase();
-  return slashCommands.filter(cmd =>
+  return commands.filter(cmd =>
     cmd.name.toLowerCase().includes(lowerQuery) ||
     cmd.description.toLowerCase().includes(lowerQuery)
   );
@@ -322,6 +337,9 @@ export default function App() {
   // Agent state
   const [agents, setAgents] = useState<Record<string, AgentState>>({});
 
+  // Skills state
+  const [skills, setSkills] = useState<Skill[]>([]);
+
   // Pending Tool execution state for manual approval
   const [pendingToolUse, setPendingToolUse] = useState<{
     toolUses: Anthropic.ToolUseBlock[];
@@ -344,6 +362,21 @@ export default function App() {
     invoke("read_memory_files").then((res: any) => {
       setMemoryContext(res as string);
     }).catch(console.error);
+
+    // Load skills on startup
+    async function loadSkills() {
+      try {
+        const projectDir = await invoke('get_cwd') as string;
+        const homeDir = await invoke('get_home_dir') as string;
+        const loadedSkills = await loadAllSkills(projectDir, homeDir);
+        setSkills([...loadedSkills, ...BUNDLED_SKILLS]);
+      } catch (e) {
+        console.error('Failed to load skills:', e);
+        // Still set bundled skills even if loading from dirs fails
+        setSkills([...BUNDLED_SKILLS]);
+      }
+    }
+    loadSkills();
 
     // Initialize MCP Servers from config
     invoke("get_config").then(async (cfgStr: any) => {
@@ -402,7 +435,7 @@ export default function App() {
     // Check if we should show command suggestions
     if (value.startsWith("/")) {
       const query = value.slice(1).toLowerCase();
-      const results = searchCommands(query);
+      const results = searchCommands(query, skills);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
       setSelectedSuggestionIndex(0);
@@ -418,7 +451,7 @@ export default function App() {
       // If no suggestions, check if we should trigger on "/" key
       if (e.key === "/" && input === "") {
         setInput("/");
-        const results = searchCommands("");
+        const results = searchCommands("", skills);
         setSuggestions(results);
         setShowSuggestions(results.length > 0);
         setSelectedSuggestionIndex(0);
@@ -454,6 +487,10 @@ export default function App() {
           } else if (selectedCommand.name === "help") {
             setInput("");
             processCommand("Show help information about available commands and features");
+          } else if ('type' in selectedCommand && selectedCommand.type === 'skill' && 'skill' in selectedCommand) {
+            const skill = (selectedCommand as { skill: Skill }).skill;
+            setInput("");
+            processCommand(skill.content);
           }
         }
         break;
@@ -670,6 +707,19 @@ export default function App() {
        setInput("");
        await processCommand("Review the current git branch and changes, push to origin if needed, and create a GitHub PR using the `gh` CLI with a good title and description.");
        return;
+    }
+
+    // Handle skill slash commands
+    const commandName = trimmedInput.split(/\s+/)[0].slice(1); // Remove the leading "/"
+    const matchingSkill = skills.find(s => s.name === commandName);
+    if (matchingSkill) {
+      const userArgs = trimmedInput.slice(commandName.length + 2).trim(); // +2 for "/" and space
+      const skillPrompt = userArgs
+        ? `${matchingSkill.content}\n\n${userArgs}`
+        : matchingSkill.content;
+      setInput("");
+      await processCommand(skillPrompt);
+      return;
     }
 
     setInput("");
@@ -1085,9 +1135,9 @@ export default function App() {
           {settingsTab === 'skills' && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div className="setting-group">
-                <label className="setting-label">内置技能</label>
+                <label className="setting-label">技能 & 命令</label>
                 <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
-                  使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发技能
+                  已加载 {skills.length} 个技能，使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发
                 </p>
               </div>
 
@@ -1131,6 +1181,40 @@ export default function App() {
                       </div>
                       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                         {cmd.description}
+                      </div>
+                    </div>
+                  ))}
+                  {skills.map((skill) => (
+                    <div key={skill.name} style={{
+                      background: "rgba(0, 255, 204, 0.05)",
+                      border: "1px solid rgba(0, 255, 204, 0.2)",
+                      borderRadius: "6px",
+                      padding: "10px",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(0, 255, 204, 0.15)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(0, 255, 204, 0.05)";
+                    }}
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      setInput(`/${skill.name} `);
+                    }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Zap size={14} color="#00ffcc" />
+                          <span style={{ fontWeight: 600, color: "#00ffcc" }}>/{skill.name}</span>
+                        </div>
+                        <span style={{ fontSize: "0.7rem", background: "rgba(0,255,204,0.2)", color: "#00ffcc", padding: "2px 8px", borderRadius: "10px" }}>
+                          {skill.source}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        {skill.description}
                       </div>
                     </div>
                   ))}
@@ -1332,6 +1416,10 @@ export default function App() {
                   } else if (cmd.name === "help") {
                     setInput("");
                     processCommand("Show help information about available commands and features");
+                  } else if ('type' in cmd && cmd.type === 'skill' && 'skill' in cmd) {
+                    const skill = (cmd as { skill: Skill }).skill;
+                    setInput("");
+                    processCommand(skill.content);
                   }
                 }}
                 style={{
