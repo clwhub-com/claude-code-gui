@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Anthropic from "@anthropic-ai/sdk";
-import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settings, Cpu, X, Check, XCircle } from "lucide-react";
+import { Send, Terminal, Loader2, Key, FolderOpen, Sparkles, ShieldAlert, Settings, Cpu, X, Check, XCircle, Server, Zap, Heart, Bot } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
@@ -242,6 +242,41 @@ You should build up this memory system over time so that future conversations ca
 If the user explicitly asks you to remember something, save it immediately using the Write tool to the \`.claude/\` directory. For example, \`.claude/MEMORY.md\` can be an index of memories.
 `;
 
+// Slash command definitions
+const slashCommands = [
+  {
+    name: "clear",
+    description: "Clear the chat history",
+    type: "builtin"
+  },
+  {
+    name: "commit",
+    description: "Review git status and diff, write conventional commit, and commit changes",
+    type: "builtin"
+  },
+  {
+    name: "pr",
+    description: "Review git branch and changes, push to origin, and create a GitHub PR",
+    type: "builtin"
+  },
+  {
+    name: "help",
+    description: "Show help information about available commands",
+    type: "builtin"
+  }
+];
+
+// Simple fuzzy search for command suggestions
+function searchCommands(query: string): typeof slashCommands {
+  if (!query) return slashCommands;
+
+  const lowerQuery = query.toLowerCase();
+  return slashCommands.filter(cmd =>
+    cmd.name.toLowerCase().includes(lowerQuery) ||
+    cmd.description.toLowerCase().includes(lowerQuery)
+  );
+}
+
 export default function App() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("anthropic_key") || "");
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem("anthropic_base_url") || "");
@@ -260,6 +295,24 @@ export default function App() {
   const [memoryContext, setMemoryContext] = useState("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Slash command autocomplete state
+  const [suggestions, setSuggestions] = useState<typeof slashCommands>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+
+  // Electronic Pet state
+  // const [petVisible, setPetVisible] = useState(true);
+  const [petLevel, setPetLevel] = useState(1);
+  const [petXP, setPetXP] = useState(0);
+  const [petMood, setPetMood] = useState<'happy' | 'neutral' | 'sad' | 'excited'>('neutral');
+  const [petSpeech, setPetSpeech] = useState<string | null>(null);
+  const [petHearts, setPetHearts] = useState<number>(0);
+
+  // MCP and Skills management state
+  // const [mcpServers, setMcpServers] = useState<{name: string, command: string, status: string}[]>([]);
+  // const [skills, setSkills] = useState<{name: string, description: string, source: string}[]>([]);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'mcp' | 'skills'>('general');
 
   // Pending Tool execution state for manual approval
   const [pendingToolUse, setPendingToolUse] = useState<{
@@ -332,6 +385,107 @@ export default function App() {
   const saveBaseUrl = (url: string) => {
     setBaseUrl(url);
     localStorage.setItem("anthropic_base_url", url);
+  };
+
+  // Slash command autocomplete handler
+  const handleInputChange = (value: string) => {
+    setInput(value);
+
+    // Check if we should show command suggestions
+    if (value.startsWith("/")) {
+      const query = value.slice(1).toLowerCase();
+      const results = searchCommands(query);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+      setSelectedSuggestionIndex(0);
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
+  // Slash command navigation and selection
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions) {
+      // If no suggestions, check if we should trigger on "/" key
+      if (e.key === "/" && input === "") {
+        setInput("/");
+        const results = searchCommands("");
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+        setSelectedSuggestionIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (suggestions.length > 0) {
+          const selectedCommand = suggestions[selectedSuggestionIndex];
+          setInput(`/${selectedCommand.name} `);
+          setShowSuggestions(false);
+          setSuggestions([]);
+
+          // Auto-execute commands without arguments
+          if (selectedCommand.name === "clear") {
+            clearHistory();
+            setInput("");
+          } else if (selectedCommand.name === "help") {
+            setInput("");
+            processCommand("Show help information about available commands and features");
+          }
+        }
+        break;
+      case "Escape":
+        setShowSuggestions(false);
+        setSuggestions([]);
+        break;
+    }
+  };
+
+  // Electronic Pet interactions
+  const handlePetClick = () => {
+    // Increase hearts count for petting animation
+    setPetHearts(3);
+    setTimeout(() => setPetHearts(0), 2000);
+
+    // Update pet mood and XP
+    setPetMood('happy');
+    const newXP = petXP + 10;
+    if (newXP >= 100) {
+      setPetLevel(petLevel + 1);
+      setPetXP(newXP - 100);
+      setPetSpeech(`Level ${petLevel + 1}! 🎉`);
+    } else {
+      setPetXP(newXP);
+    }
+
+    // Random speech
+    const messages = [
+      "Hello!",
+      "I'm your coding buddy!",
+      "Great job!",
+      "What's next?",
+      "You're awesome!",
+      "Thanks for petting me!",
+      "Coding is fun!"
+    ];
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    setPetSpeech(randomMessage);
+    setTimeout(() => setPetSpeech(null), 3000);
   };
 
   const selectWorkspace = async () => {
@@ -769,83 +923,254 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><Cpu size={20} /> 系统参数设定</div>
             <button className="close-btn" onClick={() => setSettingsOpen(false)}><X size={20} /></button>
           </div>
-          
-          <div className="setting-group">
-            <label className="setting-label">API 密钥 (Anthropic)</label>
-            <div style={{ position: "relative" }}>
-              <Key size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "rgba(255,255,255,0.5)" }} />
-              <input
-                className="holo-input"
-                type="password"
-                placeholder="sk-ant-..."
-                value={apiKey}
-                onChange={(e) => saveKey(e.target.value)}
-                style={{ padding: "8px 8px 8px 32px", borderRadius: "6px", width: "100%" }}
-              />
-            </div>
-          </div>
 
-          <div className="setting-group">
-            <label className="setting-label">模型引擎</label>
-            <input
-              className="holo-input"
-              type="text"
-              placeholder="claude-3-7-sonnet-20250219"
-              value={model}
-              onChange={(e) => saveModel(e.target.value)}
-              style={{ padding: "8px", borderRadius: "6px", width: "100%" }}
-            />
-          </div>
-
-          <div className="setting-group">
-            <label className="setting-label">API 代理节点 (Base URL)</label>
-            <input
-              className="holo-input"
-              type="text"
-              placeholder="默认官方节点 (留空)"
-              value={baseUrl}
-              onChange={(e) => saveBaseUrl(e.target.value)}
-              style={{ padding: "8px", borderRadius: "6px", width: "100%" }}
-            />
-          </div>
-
-          <div className="setting-group" style={{ marginTop: "1rem" }}>
-            <label className="setting-label">目标工作区 (Workspace)</label>
-            <button onClick={selectWorkspace} className="holo-btn" style={{ padding: "10px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
-              <FolderOpen size={16} /> 变更目录
+          {/* Settings Tabs */}
+          <div style={{ display: "flex", gap: "4px", background: "rgba(0,0,0,0.2)", padding: "4px", borderRadius: "8px", marginBottom: "1rem" }}>
+            <button
+              onClick={() => setSettingsTab('general')}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: settingsTab === 'general' ? "var(--holo-gradient)" : "transparent",
+                color: settingsTab === 'general' ? "white" : "var(--text-muted)",
+                fontWeight: 600,
+                transition: "all 0.2s",
+                fontSize: "0.85rem"
+              }}
+            >
+              通用
             </button>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", wordBreak: "break-all", marginTop: "4px" }}>当前: {workspace}</div>
+            <button
+              onClick={() => setSettingsTab('mcp')}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: settingsTab === 'mcp' ? "var(--holo-gradient)" : "transparent",
+                color: settingsTab === 'mcp' ? "white" : "var(--text-muted)",
+                fontWeight: 600,
+                transition: "all 0.2s",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
+              }}
+            >
+              <Server size={14} /> MCP
+            </button>
+            <button
+              onClick={() => setSettingsTab('skills')}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: settingsTab === 'skills' ? "var(--holo-gradient)" : "transparent",
+                color: settingsTab === 'skills' ? "white" : "var(--text-muted)",
+                fontWeight: 600,
+                transition: "all 0.2s",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
+              }}
+            >
+              <Zap size={14} /> 技能
+            </button>
           </div>
 
-          <div className="setting-group" style={{ marginTop: "1rem", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontWeight: "bold", fontSize: "0.95rem" }}>Auto Mode</label>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>允许AI免许可执行系统指令</span>
+          {settingsTab === 'general' && (
+            <>
+              <div className="setting-group">
+                <label className="setting-label">API 密钥 (Anthropic)</label>
+                <div style={{ position: "relative" }}>
+                  <Key size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "rgba(255,255,255,0.5)" }} />
+                  <input
+                    className="holo-input"
+                    type="password"
+                    placeholder="sk-ant-..."
+                    value={apiKey}
+                    onChange={(e) => saveKey(e.target.value)}
+                    style={{ padding: "8px 8px 8px 32px", borderRadius: "6px", width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              <div className="setting-group">
+                <label className="setting-label">模型引擎</label>
+                <input
+                  className="holo-input"
+                  type="text"
+                  placeholder="claude-3-7-sonnet-20250219"
+                  value={model}
+                  onChange={(e) => saveModel(e.target.value)}
+                  style={{ padding: "8px", borderRadius: "6px", width: "100%" }}
+                />
+              </div>
+
+              <div className="setting-group">
+                <label className="setting-label">API 代理节点 (Base URL)</label>
+                <input
+                  className="holo-input"
+                  type="text"
+                  placeholder="默认官方节点 (留空)"
+                  value={baseUrl}
+                  onChange={(e) => saveBaseUrl(e.target.value)}
+                  style={{ padding: "8px", borderRadius: "6px", width: "100%" }}
+                />
+              </div>
+
+              <div className="setting-group" style={{ marginTop: "1rem" }}>
+                <label className="setting-label">目标工作区 (Workspace)</label>
+                <button onClick={selectWorkspace} className="holo-btn" style={{ padding: "10px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                  <FolderOpen size={16} /> 变更目录
+                </button>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", wordBreak: "break-all", marginTop: "4px" }}>当前: {workspace}</div>
+              </div>
+
+              <div className="setting-group" style={{ marginTop: "1rem", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontWeight: "bold", fontSize: "0.95rem" }}>Auto Mode</label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>允许AI免许可执行系统指令</span>
+                </div>
+                <label className="toggle-switch">
+                  <input type="checkbox" checked={autoMode} onChange={(e) => toggleAutoMode(e.target.checked)} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+
+              <div style={{ marginTop: "auto" }}>
+                 <button onClick={clearHistory} className="holo-btn" style={{ background: "rgba(255,0,0,0.2)", padding: "10px", borderRadius: "6px", width: "100%" }}>
+                    清空对话历史
+                 </button>
+              </div>
+            </>
+          )}
+
+          {settingsTab === 'mcp' && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div className="setting-group">
+                <label className="setting-label">MCP 服务器管理</label>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
+                  在 .clauderc 配置文件中定义 MCP 服务器。已加载 {dynamicTools.length} 个工具。
+                </p>
+              </div>
+
+              <div style={{
+                flex: 1,
+                overflowY: "auto",
+                background: "rgba(0,0,0,0.2)",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                padding: "12px"
+              }}>
+                {dynamicTools.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {Array.from(new Set(dynamicTools.map(t => t.name.split('__')[1]))).map((serverName) => (
+                      <div key={serverName} style={{
+                        background: "rgba(0, 255, 204, 0.05)",
+                        border: "1px solid rgba(0, 255, 204, 0.2)",
+                        borderRadius: "6px",
+                        padding: "10px"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <div style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            background: "#00ffcc"
+                          }} />
+                          <span style={{ fontWeight: 600, color: "#00ffcc" }}>{serverName}</span>
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          {dynamicTools.filter(t => t.name.startsWith(`mcp__${serverName}__`)).length} 个工具
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
+                    <Server size={32} style={{ opacity: 0.3, marginBottom: "8px" }} />
+                    <p style={{ fontSize: "0.85rem" }}>暂无已加载的 MCP 服务器</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <label className="toggle-switch">
-              <input type="checkbox" checked={autoMode} onChange={(e) => toggleAutoMode(e.target.checked)} />
-              <span className="slider"></span>
-            </label>
-          </div>
+          )}
 
-          <div style={{ marginTop: "auto" }}>
-             <button onClick={clearHistory} className="holo-btn" style={{ background: "rgba(255,0,0,0.2)", padding: "10px", borderRadius: "6px", width: "100%" }}>
-                清空对话历史
-             </button>
-          </div>
+          {settingsTab === 'skills' && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div className="setting-group">
+                <label className="setting-label">内置技能</label>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
+                  使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发技能
+                </p>
+              </div>
+
+              <div style={{
+                flex: 1,
+                overflowY: "auto",
+                background: "rgba(0,0,0,0.2)",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                padding: "12px"
+              }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {slashCommands.map((cmd) => (
+                    <div key={cmd.name} style={{
+                      background: "rgba(121, 91, 255, 0.05)",
+                      border: "1px solid rgba(121, 91, 255, 0.2)",
+                      borderRadius: "6px",
+                      padding: "10px",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(121, 91, 255, 0.15)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(121, 91, 255, 0.05)";
+                    }}
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      setInput(`/${cmd.name} `);
+                    }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Zap size={14} color="#b4befe" />
+                          <span style={{ fontWeight: 600, color: "#b4befe" }}>/{cmd.name}</span>
+                        </div>
+                        <span style={{ fontSize: "0.7rem", background: "rgba(121,91,255,0.2)", color: "#b4befe", padding: "2px 8px", borderRadius: "10px" }}>
+                          {cmd.type}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        {cmd.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Chat Area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "2rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "2rem", display: "flex", flexDirection: "column", gap: "1rem", position: "relative" }}>
         {messages.length === 0 && (
           <div style={{ margin: "auto", textAlign: "center", color: "#6c7086", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
             <div style={{ position: "relative" }}>
               <Terminal size={64} style={{ opacity: 0.8 }} />
-              {/* Fake Electronic Pet Badge */}
-              <div style={{ position: "absolute", top: -10, right: -10, background: "#ff6bba", color: "white", borderRadius: "20px", padding: "2px 8px", fontSize: "0.7rem", fontWeight: "bold", animation: "pulse 2s infinite" }}>
-                LV. 1 电子宠物
-              </div>
             </div>
             <h3 style={{ margin: "10px 0 5px 0", color: "#cdd6f4" }}>Welcome to Claude Code (Unrestricted)</h3>
             <p style={{ fontSize: "0.9rem", maxWidth: "400px", lineHeight: "1.5" }}>
@@ -859,6 +1184,112 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Electronic Pet (Bottom Right) */}
+        {/* {petVisible && ( */}
+        <div
+            onClick={handlePetClick}
+            style={{
+              position: "absolute",
+              bottom: "20px",
+              right: "20px",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              zIndex: 50
+            }}
+          >
+            {/* Speech bubble */}
+            {petSpeech && (
+              <div style={{
+                background: "var(--glass-bg)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid var(--glass-border)",
+                padding: "8px 14px",
+                borderRadius: "16px",
+                marginBottom: "8px",
+                fontSize: "0.8rem",
+                color: "var(--text-main)",
+                maxWidth: "180px",
+                textAlign: "center",
+                animation: "fadeIn 0.2s ease-out"
+              }}>
+                {petSpeech}
+              </div>
+            )}
+
+            {/* Hearts animation */}
+            {petHearts > 0 && (
+              <div style={{ position: "absolute", bottom: "40px", display: "flex", gap: "5px" }}>
+                {[...Array(petHearts)].map((_, i) => (
+                  <Heart
+                    key={i}
+                    size={16}
+                    color="#ff6bba"
+                    fill="#ff6bba"
+                    style={{
+                      animation: `floatHeart ${1 + i * 0.2}s ease-out forwards`,
+                      opacity: 0,
+                      position: "relative"
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pet avatar */}
+            <div style={{
+              background: "var(--holo-gradient)",
+              borderRadius: "50%",
+              padding: "12px",
+              boxShadow: "0 4px 15px rgba(255, 107, 186, 0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              animation: petMood === 'excited' ? "pulse 1s infinite" : "none"
+            }}>
+              <Bot size={28} color="white" />
+
+              {/* Level badge */}
+              <div style={{
+                position: "absolute",
+                top: "-5px",
+                right: "-5px",
+                background: "#ff6bba",
+                color: "white",
+                borderRadius: "50%",
+                width: "24px",
+                height: "24px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.7rem",
+                fontWeight: "bold",
+                boxShadow: "0 2px 8px rgba(255, 107, 186, 0.5)"
+              }}>
+                {petLevel}
+              </div>
+            </div>
+
+            {/* XP bar */}
+            <div style={{
+              width: "60px",
+              height: "4px",
+              background: "rgba(255,255,255,0.1)",
+              borderRadius: "2px",
+              marginTop: "6px",
+              overflow: "hidden"
+            }}>
+              <div style={{
+                width: `${petXP}%`,
+                height: "100%",
+                background: "var(--holo-gradient)",
+                transition: "width 0.3s ease"
+              }} />
+            </div>
+          </div>
 
         {messages.map((m, idx) => (
           <div key={idx} style={{
@@ -894,7 +1325,63 @@ export default function App() {
       </div>
 
       {/* Input Area */}
-      <div style={{ padding: "1rem", backgroundColor: "#11111b", borderTop: "1px solid #313244" }}>
+      <div style={{ padding: "1rem", backgroundColor: "#11111b", borderTop: "1px solid #313244", position: "relative" }}>
+        {/* Slash command suggestions */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div style={{
+            position: "absolute",
+            bottom: "100%",
+            left: "1rem",
+            right: "1rem",
+            marginBottom: "8px",
+            background: "var(--glass-bg)",
+            backdropFilter: "blur(16px) saturate(180%)",
+            border: "1px solid var(--glass-border)",
+            borderRadius: "8px",
+            overflow: "hidden",
+            zIndex: 100,
+            maxHeight: "200px",
+            overflowY: "auto"
+          }}>
+            {suggestions.map((cmd, idx) => (
+              <div
+                key={cmd.name}
+                onClick={() => {
+                  setInput(`/${cmd.name} `);
+                  setShowSuggestions(false);
+                  setSuggestions([]);
+                  if (cmd.name === "clear") {
+                    clearHistory();
+                    setInput("");
+                  } else if (cmd.name === "help") {
+                    setInput("");
+                    processCommand("Show help information about available commands and features");
+                  }
+                }}
+                style={{
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: idx === selectedSuggestionIndex ? "rgba(121, 91, 255, 0.2)" : "transparent",
+                  borderBottom: idx < suggestions.length - 1 ? "1px solid rgba(255, 255, 255, 0.05)" : "none",
+                  transition: "background 0.15s"
+                }}
+                onMouseEnter={() => setSelectedSuggestionIndex(idx)}
+              >
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontWeight: 600, color: "#b4befe" }}>/{cmd.name}</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{cmd.description}</span>
+                </div>
+                <span style={{ fontSize: "0.7rem", background: "rgba(0, 255, 204, 0.1)", color: "#00ffcc", padding: "2px 8px", borderRadius: "10px" }}>
+                  {cmd.type}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {pendingToolUse && (
           <div style={{ padding: "12px", marginBottom: "12px", background: "rgba(255, 107, 186, 0.1)", border: "1px solid rgba(255, 107, 186, 0.3)", borderRadius: "8px" }}>
             <h4 style={{ color: "#ff6bba", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "8px" }}><ShieldAlert size={16} /> 拦截到敏感操作</h4>
@@ -912,12 +1399,13 @@ export default function App() {
             </div>
           </div>
         )}
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} style={{ display: "flex", gap: "10px" }}>
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} style={{ display: "flex", gap: "10px", position: "relative" }}>
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
             disabled={loading || !apiKey}
-            placeholder={apiKey ? "Ask Claude to run a command or write code..." : "Please enter API Key first"}
+            placeholder={apiKey ? "Ask Claude to run a command or write code... (try / for commands)" : "Please enter API Key first"}
             style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #313244", backgroundColor: "#181825", color: "white", fontSize: "16px" }}
           />
           <button

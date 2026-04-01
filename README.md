@@ -20,6 +20,13 @@ Unlike the official CLI, which runs in a sandboxed NodeJS environment with limit
 5. **Hooks System**: Define `pre-message` hooks in your `.clauderc` config to run shell commands automatically before API calls.
 6. **Built-in Skills**: Quick slash commands like `/commit`, `/pr`, and `/clear` mapped directly to complex AI workflows.
 7. **Background Tasks**: The model can spawn persistent background workers (like `npm run dev`) and fetch their logs dynamically via `CheckTask`.
+8. **Interactive Electronic Pet**: A cute interactive coding buddy that responds to your petting, levels up, and gives encouragement!
+9. **Slash Command Autocomplete**: Type "/" in the input box to see available commands with real-time fuzzy search and keyboard navigation.
+10. **Settings Dashboard**: Comprehensive settings with multiple tabs:
+    - General: API key, model selection, workspace
+    - Auto Mode toggle
+    - MCP server management and status
+    - Skills catalog with built-in commands
 
 ### 🛠 Installation & Build
 
@@ -46,12 +53,19 @@ npm run tauri build
 ### ✨ 核心特性
 
 1. **无限制沙盒逃逸**：底层由 Rust 驱动，Claude 可以无缝执行任意 `bash` 命令、读写任意系统文件，甚至原生拉起后台常驻进程。
-2. **自动模式与硬拦截安全审批**：在“安全模式”下，当 AI 试图执行高危命令（如 `rm -rf`）时，Rust 后端会在 UI 层面强制拦截调用，弹出确认框要求用户审批。切换到“自动模式”后，AI 将获得完全自治权。
+2. **自动模式与硬拦截安全审批**：在”安全模式”下，当 AI 试图执行高危命令（如 `rm -rf`）时，Rust 后端会在 UI 层面强制拦截调用，弹出确认框要求用户审批。切换到”自动模式”后，AI 将获得完全自治权。
 3. **Prompt 提示词缓存与计费面板**：深度集成了 Anthropic 的 `ephemeral` 缓存断点技术，使长上下文的 API 费用骤降最高 90%。UI 左上角自带实时 Token 成本精确估算面板。
 4. **完整支持 MCP 扩展生态**：支持通过 `.clauderc` 配置文件动态加载第三方的 MCP（模型上下文协议）服务器（如本地查库、网页搜索）。Rust 后端会自动拉起并管理微服务，通过 JSON-RPC 2.0 原生接入 Claude 大模型。
 5. **Hooks 钩子系统**：在 `.clauderc` 中配置 `pre-message` 等钩子，即可在发消息前自动执行本地 Shell 脚本。
 6. **内置技能 (Skills)**：输入 `/commit`、`/pr`、`/clear` 等快捷指令，将自动展开为预设的复杂 AI 开发流。
 7. **后台任务管理**：模型可以主动拉起如 `npm run dev` 这样的长连接进程，并通过 `CheckTask` 工具动态读取标准输出日志。
+8. **互动电子宠物**：超萌的编程伙伴，点击互动会升级、表达情绪、给你加油打气！
+9. **斜杠命令自动完成**：在输入框输入 “/” 即可实时显示可用命令，支持模糊搜索和键盘导航。
+10. **综合设置面板**：多标签页设置系统：
+    - 通用：API 密钥、模型选择、工作区
+    - 自动模式切换
+    - MCP 服务器管理和状态查看
+    - 技能目录（内置命令一览）
 
 ### 🛠 安装与编译
 
