@@ -26,6 +26,22 @@
 
 ---
 
+## 📸 截图预览
+
+### 聊天界面
+
+![Chat](Image/chat.png)
+
+### 设置界面
+
+![Settings](Image/setting.png)
+
+### 技能系统
+
+![Skills](Image/skills.png)
+
+---
+
 <a name="中文"></a>
 ## 🚀 核心特性
 

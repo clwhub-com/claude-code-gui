@@ -299,6 +299,8 @@ export default function App() {
     const saved = localStorage.getItem("claude_total_cost");
     return saved ? parseFloat(saved) : 0;
   });
+  // Keep totalCost calculation for internal tracking, but don't display in UI
+  void totalCost;
   const [totalTokens, setTotalTokens] = useState(() => {
     const saved = localStorage.getItem("claude_total_tokens");
     return saved ? parseInt(saved) : 0;
@@ -792,6 +794,7 @@ export default function App() {
 
         // Streaming: Use stream API for real-time output
         let streamedText = "";
+        let streamedThinking = "";
 
         const stream = anthropic.messages.stream({
           model: model || "claude-3-7-sonnet-20250219",
@@ -807,6 +810,43 @@ export default function App() {
           tools: [...tools, ...dynamicTools],
         });
 
+        // Handle streaming thinking
+        stream.on('thinking', (thinking) => {
+          streamedThinking += thinking;
+          // Update UI with streamed thinking
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.role === "assistant") {
+              if (Array.isArray(lastMsg.content)) {
+                // Find or create thinking block
+                const thinkingBlock = lastMsg.content.find(b => b.type === "thinking");
+                if (thinkingBlock && 'thinking' in thinkingBlock) {
+                  (thinkingBlock as any).thinking = streamedThinking;
+                } else {
+                  lastMsg.content.unshift({ type: "thinking", thinking: streamedThinking } as any);
+                }
+                newMessages[newMessages.length - 1] = { ...lastMsg, content: [...lastMsg.content] };
+              } else {
+                // Convert string content to array with thinking block
+                newMessages[newMessages.length - 1] = {
+                  role: "assistant",
+                  content: [
+                    { type: "thinking", thinking: streamedThinking } as any,
+                    { type: "text", text: typeof lastMsg.content === "string" ? lastMsg.content : "" }
+                  ]
+                };
+              }
+            } else {
+              newMessages.push({
+                role: "assistant",
+                content: [{ type: "thinking", thinking: streamedThinking } as any]
+              });
+            }
+            return newMessages;
+          });
+        });
+
         // Handle streaming text
         stream.on('text', (text) => {
           streamedText += text;
@@ -814,10 +854,30 @@ export default function App() {
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg && lastMsg.role === "assistant" && typeof lastMsg.content === "string") {
-              newMessages[newMessages.length - 1] = { role: "assistant", content: streamedText };
+            if (lastMsg && lastMsg.role === "assistant") {
+              if (Array.isArray(lastMsg.content)) {
+                // Find or create text block
+                const textBlock = lastMsg.content.find(b => b.type === "text");
+                if (textBlock && 'text' in textBlock) {
+                  textBlock.text = streamedText;
+                } else {
+                  lastMsg.content.push({ type: "text", text: streamedText });
+                }
+                newMessages[newMessages.length - 1] = { ...lastMsg, content: [...lastMsg.content] };
+              } else {
+                // Convert string content to array
+                newMessages[newMessages.length - 1] = {
+                  role: "assistant",
+                  content: [
+                    { type: "text", text: streamedText }
+                  ]
+                };
+              }
             } else {
-              newMessages.push({ role: "assistant", content: streamedText });
+              newMessages.push({
+                role: "assistant",
+                content: [{ type: "text", text: streamedText }]
+              });
             }
             return newMessages;
           });
@@ -870,7 +930,9 @@ export default function App() {
         }
 
         // Final message with complete content (including tool_use blocks)
-        currentMessages = [...currentMessages, { role: "assistant", content: response.content }];
+        // Filter out thinking blocks from saved messages
+        const finalContent = response.content.filter((c) => c.type !== "thinking");
+        currentMessages = [...currentMessages, { role: "assistant", content: finalContent }];
         setMessages([...currentMessages]);
 
         // Check if there are tool uses
@@ -933,7 +995,7 @@ export default function App() {
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255, 107, 186, 0.1)", border: "1px solid rgba(255, 107, 186, 0.3)", padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", color: "#ff6bba", fontWeight: "bold" }}>
-            {t.totalCost}: ${totalCost.toFixed(4)} | {totalTokens.toLocaleString()} tok
+            {totalTokens.toLocaleString()} tok
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: autoMode ? "rgba(0, 255, 204, 0.1)" : "rgba(255, 255, 255, 0.05)", border: `1px solid ${autoMode ? "rgba(0, 255, 204, 0.3)" : "rgba(255, 255, 255, 0.1)"}`, padding: "4px 10px", borderRadius: "20px", fontSize: "0.85rem", transition: "all 0.3s" }}>
             <ShieldAlert size={14} color={autoMode ? "#00ffcc" : "#a0a0a0"} />
@@ -1282,6 +1344,16 @@ export default function App() {
           }}>
             {Array.isArray(m.content) ?
               m.content.map((block, i) => {
+                // Only show thinking block if there's no text response yet
+                const hasTextResponse = Array.isArray(m.content) && m.content.some((b: any) => b.type === "text" && b.text && b.text.trim().length > 0);
+                if (block.type === "thinking" && !hasTextResponse) return (
+                  <div key={i} style={{ backgroundColor: "rgba(137, 180, 250, 0.1)", border: "1px solid rgba(137, 180, 250, 0.2)", padding: "12px", borderRadius: "6px", marginTop: i > 0 ? "10px" : 0, fontSize: "0.9em", color: "#89b4fa" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px", fontSize: "0.8em", fontWeight: "bold" }}>
+                      <Loader2 size={14} className="animate-spin" /> Thinking...
+                    </div>
+                    <div style={{ whiteSpace: "pre-wrap" }}>{block.thinking}</div>
+                  </div>
+                );
                 if (block.type === "text") return <div key={i}>{block.text}</div>;
                 if (block.type === "tool_use") return (
                   <div key={i} style={{ backgroundColor: "#11111b", padding: "10px", borderRadius: "4px", marginTop: "10px", fontSize: "0.9em", color: "#a6e3a1" }}>
@@ -1300,7 +1372,28 @@ export default function App() {
             }
           </div>
         ))}
-        {loading && <div style={{ color: "#89b4fa", display: "flex", alignItems: "center", gap: "10px" }}><Loader2 className="animate-spin" /> Claude is thinking or executing tools...</div>}
+        {loading && (
+          <div style={{ 
+            color: "#89b4fa", 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "10px",
+            padding: "12px 16px",
+            background: "rgba(137, 180, 250, 0.1)",
+            borderRadius: "8px",
+            border: "1px solid rgba(137, 180, 250, 0.2)"
+          }}>
+            <Loader2 className="animate-spin" size={18} />
+            <span style={{ fontWeight: 500 }}>
+              {t.thinking}
+              <span className="loading-dots">
+                <span className="dot">.</span>
+                <span className="dot">.</span>
+                <span className="dot">.</span>
+              </span>
+            </span>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 

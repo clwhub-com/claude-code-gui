@@ -1,6 +1,6 @@
 export const zh = {
   // Header
-  title: '全息核心 (Claude)',
+  title: 'Claude Code Gui',
   totalCost: '总花费',
   autoModeActive: '自动模式已启动',
   safeMode: '安全模式',
