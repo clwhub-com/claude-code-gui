@@ -8,6 +8,7 @@ import { createAgentTool, AgentState, AgentToolInput } from './agents';
 import { Skill } from './skills/types';
 import { loadAllSkills } from './skills/loadSkillsDir';
 import { BUNDLED_SKILLS } from './skills/bundledSkills';
+import { Plugin, loadPluginsFromDir, BUILTIN_PLUGINS } from './plugins';
 
 const tools: Anthropic.Tool[] = [
   {
@@ -340,6 +341,9 @@ export default function App() {
   // Skills state
   const [skills, setSkills] = useState<Skill[]>([]);
 
+  // Plugins state
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+
   // Pending Tool execution state for manual approval
   const [pendingToolUse, setPendingToolUse] = useState<{
     toolUses: Anthropic.ToolUseBlock[];
@@ -363,20 +367,30 @@ export default function App() {
       setMemoryContext(res as string);
     }).catch(console.error);
 
-    // Load skills on startup
-    async function loadSkills() {
+    // Load skills and plugins on startup
+    async function initialize() {
       try {
         const projectDir = await invoke('get_cwd') as string;
         const homeDir = await invoke('get_home_dir') as string;
         const loadedSkills = await loadAllSkills(projectDir, homeDir);
-        setSkills([...loadedSkills, ...BUNDLED_SKILLS]);
+
+        // Load plugins
+        const pluginsDir = `${homeDir}/.claude/plugins`;
+        const loadedPlugins = await loadPluginsFromDir(pluginsDir);
+        setPlugins([...BUILTIN_PLUGINS, ...loadedPlugins]);
+
+        // Add plugin skills to skills list
+        const pluginSkills = loadedPlugins.flatMap(p => p.skills);
+        const builtinPluginSkills = BUILTIN_PLUGINS.flatMap(p => p.skills);
+        setSkills([...loadedSkills, ...BUNDLED_SKILLS, ...builtinPluginSkills, ...pluginSkills]);
       } catch (e) {
-        console.error('Failed to load skills:', e);
-        // Still set bundled skills even if loading from dirs fails
-        setSkills([...BUNDLED_SKILLS]);
+        console.error('Failed to load skills/plugins:', e);
+        // Still set bundled skills and built-in plugins even if loading from dirs fails
+        setSkills([...BUNDLED_SKILLS, ...BUILTIN_PLUGINS.flatMap(p => p.skills)]);
+        setPlugins([...BUILTIN_PLUGINS]);
       }
     }
-    loadSkills();
+    initialize();
 
     // Initialize MCP Servers from config
     invoke("get_config").then(async (cfgStr: any) => {
@@ -1137,9 +1151,29 @@ export default function App() {
               <div className="setting-group">
                 <label className="setting-label">技能 & 命令</label>
                 <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 12px 0" }}>
-                  已加载 {skills.length} 个技能，使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发
+                  已加载 {skills.length} 个技能，{plugins.length} 个插件，使用斜杠命令 <code style={{ background: "rgba(121,91,255,0.2)", padding: "2px 6px", borderRadius: "4px" }}>/</code> 快速触发
                 </p>
               </div>
+
+              {plugins.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "6px" }}>已加载插件</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {plugins.map((plugin) => (
+                      <span key={plugin.name} style={{
+                        background: plugin.source === 'builtin' ? "rgba(121, 91, 255, 0.15)" : "rgba(0, 255, 204, 0.1)",
+                        border: `1px solid ${plugin.source === 'builtin' ? "rgba(121, 91, 255, 0.3)" : "rgba(0, 255, 204, 0.2)"}`,
+                        padding: "4px 10px",
+                        borderRadius: "12px",
+                        fontSize: "0.75rem",
+                        color: plugin.source === 'builtin' ? "#b4befe" : "#00ffcc"
+                      }}>
+                        {plugin.name} v{plugin.version}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{
                 flex: 1,
