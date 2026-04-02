@@ -25,6 +25,21 @@
 
 ---
 
+##  下载安装
+
+支持 macOS / Windows / Linux 三端，直接下载安装即可使用：
+
+| 平台 | 下载 |
+|------|------|
+| macOS (Apple Silicon) | [claude-code-gui_0.1.0_aarch64.dmg](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| macOS (Intel) | [claude-code-gui_0.1.0_x64.dmg](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| Windows | [claude-code-gui_0.1.0_x64.msi](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| Linux | [claude-code-gui_0.1.0_amd64.AppImage](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+
+ 所有版本：[Releases 页面](https://github.com/clwhub-com/claude-code-gui/releases)
+
+---
+
 ## 📸 截图预览
 
 ### 聊天界面
@@ -239,6 +254,17 @@ A desktop version of Claude Code built with **Rust + React**. Uses the same Anth
 |  Plugin System | Custom plugin support |
 |  Chinese Support | Full Chinese/English interface |
 | ⚡ Rust Engine | Native execution, faster and more stable |
+
+##  Download
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | [claude-code-gui_0.1.0_aarch64.dmg](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| macOS (Intel) | [claude-code-gui_0.1.0_x64.dmg](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| Windows | [claude-code-gui_0.1.0_x64.msi](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+| Linux | [claude-code-gui_0.1.0_amd64.AppImage](https://github.com/clwhub-com/claude-code-gui/releases/latest) |
+
+ All versions: [Releases](https://github.com/clwhub-com/claude-code-gui/releases)
 
 ### Quick Start
 
