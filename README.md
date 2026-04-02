@@ -1,20 +1,4 @@
-# AI 创新工具系列
 
-欢迎来到我们的 GitHub 仓库！
-
-**官网地址**：[clwhub.com](https://clwhub.com)
-
-我们针对多个行业开发了一系列 AI 工具，将陆续上线发布。  
-敬请持续关注我们，更多精彩产品正在紧张准备中！
-
-### 即将推出的 AI 工具包括：
-- **漫剧制作工具**  
-- **自媒体运营AI工具**  
-- **自动建站和 GEO 优化工具**
-
-更多垂直行业的 AI 工具也将陆续与大家见面，欢迎持续关注我们的官网和 GitHub，一起探索 AI 赋能未来的无限可能！
-
----
 
 [![简体中文版](https://img.shields.io/badge/简体中文-d9d9d9)](#中文) [![English](https://img.shields.io/badge/English-d9d9d9)](#english)
 
@@ -23,6 +7,21 @@
 基于 **Tauri (Rust)** 后端和 **React** 前端构建的强大桌面 GUI 应用，为 Anthropic Claude Code 提供丰富的交互式界面，具备超越官方 CLI 的增强功能。
 
 [![Stable Version](https://img.shields.io/github/v/release/clwhub-com/claude-code-gui?label=stable)](https://github.com/clwhub-com/claude-code-gui/releases) [![Commits](https://img.shields.io/github/commit-activity/m/clwhub-com/claude-code-gui)](https://github.com/clwhub-com/claude-code-gui/graphs/commit-activity) [![Issues](https://img.shields.io/github/issues-closed/clwhub-com/claude-code-gui)](https://github.com/clwhub-com/claude-code-gui/issues) [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
+
+---
+
+## 💡 这是什么？
+
+基于 **Rust + React** 构建的 Claude Code 桌面版。底层调用与官方 CLI 相同的 Anthropic API，但用 Rust 重写了执行引擎，性能更快、资源占用更低。
+
+**相比官方 CLI 的不同**：
+
+| 特点 | 说明 |
+|------|------|
+|  桌面应用 | 下载安装即用，不需要配环境 |
+|  图形界面 | 可视化管理技能、MCP、设置 |
+|  中文支持 | 完整中文界面 |
+| ⚡ Rust 引擎 | 原生执行，更快更稳 |
 
 ---
 
@@ -219,23 +218,33 @@ src/
 
 ---
 
+# AI 创新工具系列
+
+我们针对多个行业开发了一系列 AI 工具，将陆续上线发布。
+
+### 即将推出：
+- 漫剧制作工具
+- 自媒体运营 AI 工具
+- 自动建站和 GEO 优化工具
+
+---
+
 <a name="english"></a>
 ## 🚀 Overview (English)
 
-A powerful desktop GUI application for Anthropic's Claude Code, built with **Tauri (Rust)** backend and **React** frontend. This application provides a rich, interactive interface for AI-powered coding assistance with enhanced features beyond the official CLI.
+A desktop version of Claude Code built with **Rust + React**. Uses the same Anthropic API as the official CLI, but with a Rust execution engine for faster performance and lower resource usage.
 
-### ✨ Key Features
+**What's different**:
 
-1. **🤖 Multi-Agent System** - Delegate tasks to specialized agents (Explore, Plan, General)
-2. **⚡ Skills & Plugins** - Extensible skill system with SKILL.md format
-3. **🔌 MCP Integration** - Dynamic Model Context Protocol server management
-4. **⚙️ Hooks System** - Custom automation with lifecycle hooks
-5. **🔄 Background Tasks** - Process management with real-time logs
-6. **📅 Cron Jobs** - Scheduled AI prompts
-7. **📁 File Operations** - AST editing, Notebook support
-8. **🔍 Code Search** - Regex-based content search
-9. **🌐 Web Integration** - Search and fetch web content
-10. **🐙 Electronic Pet** - Interactive coding companion
+| Feature | Description |
+|---------|-------------|
+|  Desktop App | Download and run, no environment setup needed |
+|  Visual UI | Manage skills, MCP, and settings visually |
+|  Auto Mode | Open unrestricted execution mode for maximum efficiency |
+|  Thinking Animation | Real-time AI reasoning visualization |
+|  Plugin System | Custom plugin support |
+|  Chinese Support | Full Chinese/English interface |
+| ⚡ Rust Engine | Native execution, faster and more stable |
 
 ### Quick Start
 
@@ -249,3 +258,5 @@ npm run tauri dev
 ### License
 
 MIT License
+
+---
